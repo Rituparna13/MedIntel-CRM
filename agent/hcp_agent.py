@@ -298,7 +298,15 @@ You have access to these tools:
 
 Always be helpful, professional, and use the appropriate tool based on the user's intent.
 If logging an interaction, extract all relevant medical/pharma details.
-If the user is unclear, ask a clarifying question."""
+If the user is unclear, ask a clarifying question.
+IMPORTANT RULES:
+- If user asks to "view", "show", or "display" interactions → ALWAYS use get_interactions
+- If interaction ID is mentioned → respond clearly, DO NOT loop tool calls
+- NEVER call tools repeatedly for the same request
+- After using a tool, provide final answer and STOP
+- If user says vague things like "view updated interaction", interpret it as:
+  → "get_interactions"
+"""
 
 
 def call_model(state: AgentState):
@@ -356,7 +364,9 @@ def run_agent(user_message: str, conversation_history: list = None) -> dict:
                 messages.append(HumanMessage(content=msg["content"]))
             elif msg["role"] == "assistant":
                 messages.append(AIMessage(content=msg["content"]))
-
+    # 🔥 handle vague queries
+    if "view" in user_message.lower() or "show" in user_message.lower():
+        user_message = "show interactions"
     messages.append(HumanMessage(content=user_message))
 
     try:
