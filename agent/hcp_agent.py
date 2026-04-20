@@ -344,7 +344,16 @@ def run_agent(user_message: str, conversation_history: list = None) -> dict:
 
     messages.append(HumanMessage(content=user_message))
 
-    result = agent_graph.invoke({"messages": messages})
+    try:
+        result = agent_graph.invoke(
+            {"messages": messages},
+            config={"recursion_limit": 5}  
+        )
+    except Exception:
+        return {
+            "response": "⚠️ Agent stopped due to loop. Please try again.",
+            "tool_used": None
+        }
 
     final_message = result["messages"][-1]
     return {
