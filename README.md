@@ -1,6 +1,6 @@
 # 🏥 AI-First CRM – HCP Module (Log Interaction Screen)
 
-> An intelligent Customer Relationship Management system for pharmaceutical sales representatives to manage Healthcare Professional (HCP) interactions using **LangGraph**, **Groq LLM (gemma2-9b-it)**, **React + Redux**, and **FastAPI**.
+> An intelligent Customer Relationship Management system for pharmaceutical sales representatives to manage Healthcare Professional (HCP) interactions using **LangGraph**, **Groq LLM (llama-3.3-70b-versatile)**, **React + Redux**, and **FastAPI**.
 
 ---
 
@@ -201,6 +201,11 @@ docker-compose up --build
 # API Docs: http://localhost:8000/docs
 ```
 
+## 🚀 Live Demo
+
+- 🌐 Frontend: https://medintel-crm-1.onrender.com/
+- ⚙️ Backend API: https://medintel-crm.onrender.com/
+- 📘 API Docs (Swagger): https://medintel-crm.onrender.com/docs
 ---
 
 ## 🤖 LangGraph Agent — 5 Tools Explained
