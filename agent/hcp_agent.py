@@ -308,9 +308,18 @@ def call_model(state: AgentState):
 
 
 def should_continue(state: AgentState):
-    last_message = state["messages"][-1]
+    messages = state["messages"]
+    last_message = messages[-1]
+
+    # If last message is from tool → STOP
+    if isinstance(last_message, ToolMessage):
+        return END
+
+    # If model wants to call tool → go to tools
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         return "tools"
+
+    # Otherwise stop
     return END
 
 
