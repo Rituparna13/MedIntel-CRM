@@ -127,14 +127,14 @@ User message: "{user_message}"
 # Tool 2: Edit Interaction
 # ─────────────────────────────────────────────
 @tool
-def edit_interaction(interaction_id: int, field: str, new_value: str) -> str:
+def edit_interaction(interaction_id, field: str, new_value: str) -> str:
     """
     Updates a specific field of an existing interaction record.
-    Args:
-        interaction_id: The ID of the interaction to update
-        field: Field name to update (doctor_name, notes, summary, sentiment, follow_up_action, etc.)
-        new_value: The new value to set
     """
+    try:
+        interaction_id = int(interaction_id)
+    except:
+        return "❌ Invalid interaction ID"
     db = get_db_session()
     try:
         interaction = db.query(Interaction).filter(Interaction.id == interaction_id).first()
@@ -198,12 +198,16 @@ def get_interactions(doctor_name: str = "", limit: int = 10) -> str:
 # Tool 4: Delete Interaction
 # ─────────────────────────────────────────────
 @tool
-def delete_interaction(interaction_id: int) -> str:
+def delete_interaction(interaction_id) -> str:
     """
     Deletes an interaction record by ID.
     Args:
         interaction_id: The ID of the interaction to delete
     """
+    try:
+        interaction_id = int(interaction_id)
+    except:
+        return "❌ Invalid interaction ID"
     db = get_db_session()
     try:
         interaction = db.query(Interaction).filter(Interaction.id == interaction_id).first()
