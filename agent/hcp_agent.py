@@ -11,11 +11,11 @@ Tools:
 import os
 import json
 from datetime import date, datetime
-from typing import Annotated, TypedDict, Any
+from typing import Annotated, TypedDict
 
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
-from langchain_core.tools import tool
+from langchain_core.tools import tool # type: ignore
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, SystemMessage
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
@@ -185,7 +185,7 @@ def get_interactions(doctor_name: str = "", limit: int = 10) -> str:
             results.append(
                 f"[ID:{i.id}] Dr. {i.doctor_name} | {i.interaction_date} | "
                 f"{i.interaction_type} | {i.sentiment}\n"
-                f"  Summary: {i.summary or i.notes[:80] if i.notes else 'N/A'}"
+                f"  Summary: {i.summary or (i.notes[:80] if i.notes else 'N/A')}"
             )
         return f"📋 Found {len(interactions)} interaction(s):\n\n" + "\n\n".join(results)
     except Exception as e:
@@ -282,11 +282,8 @@ class AgentState(TypedDict):
 
 
 # ─────────────────────────────────────────────
-# Build LangGraph
+# System Prompt
 # ─────────────────────────────────────────────
-tools = [log_interaction, edit_interaction, get_interactions, delete_interaction, suggest_next_action]
-llm_with_tools = llm.bind_tools(tools)
-
 SYSTEM_PROMPT = """You are an intelligent CRM assistant for pharmaceutical sales representatives managing Healthcare Professional (HCP) interactions.
 
 You have access to these tools:
@@ -299,38 +296,49 @@ You have access to these tools:
 Always be helpful, professional, and use the appropriate tool based on the user's intent.
 If logging an interaction, extract all relevant medical/pharma details.
 If the user is unclear, ask a clarifying question.
+
 IMPORTANT RULES:
-- If user asks to "view", "show", or "display" interactions → ALWAYS use get_interactions
-- If interaction ID is mentioned → respond clearly, DO NOT loop tool calls
-- NEVER call tools repeatedly for the same request
-- After using a tool, provide final answer and STOP
-- If user says vague things like "view updated interaction", interpret it as:
-  → "get_interactions"
+- If user asks to "view", "show", "list", or "display" interactions → use get_interactions
+- NEVER call the same tool twice for the same request
+- After a tool result is available, summarize it clearly and STOP
+- Do not loop or re-invoke tools after receiving a result
 """
 
+
+# ─────────────────────────────────────────────
+# Agent Node
+# ─────────────────────────────────────────────
 def call_model(state: AgentState):
-    messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
+    messages = state["messages"]
+    last = messages[-1] if messages else None
 
-    # ALWAYS allow tools ONLY on first pass
-    response = llm_with_tools.invoke(messages)
+    # If the last message is a ToolMessage — summarize it without calling tools again
+    if isinstance(last, ToolMessage):
+        all_messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
+        response = llm.invoke(all_messages)  # plain LLM, no tools bound
+        return {"messages": [response]}
 
+    # First pass — LLM may call a tool
+    all_messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
+    response = llm_with_tools.invoke(all_messages)
     return {"messages": [response]}
 
 
+# ─────────────────────────────────────────────
+# Routing Logic
+# ─────────────────────────────────────────────
 def should_continue(state: AgentState):
-    messages = state["messages"]
-    last_message = messages[-1]
-
-    # STOP if last message is tool result
-    if isinstance(last_message, ToolMessage):
-        return END
-
-    # Allow tool ONLY once
-    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+    last = state["messages"][-1]
+    if hasattr(last, "tool_calls") and last.tool_calls:
         return "tools"
-
     return END
 
+
+# ─────────────────────────────────────────────
+# Build LangGraph
+# ─────────────────────────────────────────────
+tools = [log_interaction, edit_interaction, get_interactions, delete_interaction, suggest_next_action]
+llm_with_tools = llm.bind_tools(tools)
 
 tool_node = ToolNode(tools)
 
@@ -339,7 +347,7 @@ graph.add_node("agent", call_model)
 graph.add_node("tools", tool_node)
 graph.set_entry_point("agent")
 graph.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
-graph.add_edge("tools", END)
+graph.add_edge("tools", "agent")  # tools → back to agent to summarize, never loops because ToolMessage check above
 
 agent_graph = graph.compile()
 
@@ -359,20 +367,18 @@ def run_agent(user_message: str, conversation_history: list = None) -> dict:
                 messages.append(HumanMessage(content=msg["content"]))
             elif msg["role"] == "assistant":
                 messages.append(AIMessage(content=msg["content"]))
-    # 🔥 handle vague queries
-    if "view" in user_message.lower() or "show" in user_message.lower():
-        user_message = "show interactions"
+
     messages.append(HumanMessage(content=user_message))
 
     try:
         result = agent_graph.invoke(
             {"messages": messages},
-            config={"recursion_limit": 5}  
+            config={"recursion_limit": 10}
         )
-    except Exception:
+    except Exception as e:
         return {
-            "response": "⚠️ Agent stopped due to loop. Please try again.",
-            "tool_used": None
+            "response": f"⚠️ Agent error: {str(e)}. Please try again.",
+            "tool_used": None,
         }
 
     final_message = result["messages"][-1]
