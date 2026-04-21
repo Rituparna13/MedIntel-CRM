@@ -325,15 +325,15 @@ def should_continue(state: AgentState):
     messages = state["messages"]
     last_message = messages[-1]
 
-    # If last message is from tool → STOP
-    if isinstance(last_message, ToolMessage):
-        return END
+    # HARD STOP: if ANY tool was already used → STOP
+    for msg in messages:
+        if isinstance(msg, ToolMessage):
+            return END
 
-    # If model wants to call tool → go to tools
+    # Allow tool ONLY once
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         return "tools"
 
-    # Otherwise stop
     return END
 
 
