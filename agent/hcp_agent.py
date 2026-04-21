@@ -325,10 +325,9 @@ def should_continue(state: AgentState):
     messages = state["messages"]
     last_message = messages[-1]
 
-    # HARD STOP: if ANY tool was already used → STOP
-    for msg in messages:
-        if isinstance(msg, ToolMessage):
-            return END
+    # STOP if last message is tool result
+    if isinstance(last_message, ToolMessage):
+        return END
 
     # Allow tool ONLY once
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
@@ -344,7 +343,7 @@ graph.add_node("agent", call_model)
 graph.add_node("tools", tool_node)
 graph.set_entry_point("agent")
 graph.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
-graph.add_edge("tools", "agent")
+graph.add_edge("tools", END)
 
 agent_graph = graph.compile()
 
