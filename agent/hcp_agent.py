@@ -308,15 +308,11 @@ IMPORTANT RULES:
   → "get_interactions"
 """
 
-
 def call_model(state: AgentState):
     messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
 
-    # 🔥 If last message is from tool → generate FINAL answer WITHOUT tools
-    if isinstance(state["messages"][-1], ToolMessage):
-        response = llm.invoke(messages)   # ❗ NO tools here
-    else:
-        response = llm_with_tools.invoke(messages)
+    # ALWAYS allow tools ONLY on first pass
+    response = llm_with_tools.invoke(messages)
 
     return {"messages": [response]}
 
